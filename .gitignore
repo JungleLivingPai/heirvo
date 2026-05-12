@@ -1,0 +1,29 @@
+node_modules
+dist
+dist-ssr
+*.local
+# Per-user Claude Code settings (allowlist for skipping permission prompts).
+# The shared `.claude/settings.json` is committed; the .local one is not.
+.claude/settings.local.json
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+src-tauri/target
+tools/synth-disc/target
+**/target/
+# Cargo.lock IS committed — this is an app, not a library, so we want
+# reproducible builds across machines.
+models/
+*.iso
+*.vob
+recovery-output/
+
+# Bundled FFmpeg binaries — too large for git, fetched per-machine
+src-tauri/resources/ffmpeg/*.exe
+src-tauri/resources/ffmpeg/*.dll

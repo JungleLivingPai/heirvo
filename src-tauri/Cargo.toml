@@ -1,0 +1,94 @@
+[package]
+name = "dvd-recovery"
+version = "0.1.0"
+description = "Heirvo — desktop application for damaged DVD recovery and video restoration"
+authors = ["Heirvo"]
+edition = "2021"
+rust-version = "1.75"
+
+[lib]
+name = "dvd_recovery_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.1", features = [] }
+tauri-plugin-dialog = "2.0"
+tauri-plugin-fs = "2.0"
+tauri-plugin-updater = "2.3"
+tauri-plugin-process = "2.0"
+
+# Async runtime
+tokio = { version = "1.41", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono", "uuid", "macros"] }
+
+# Utilities
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+zstd = "0.13"
+sha2 = "0.10"
+bytes = "1.8"
+parking_lot = "0.12"
+once_cell = "1.20"
+dirs = "5.0"
+
+# FFmpeg auto-downloader
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
+zip = "2.2"
+futures-util = "0.3"
+
+# Image decode/encode for AI preview output (PNG only — keep deps minimal)
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# ONNX Runtime — optional. Enable with `--features onnx` to pull ~50MB of
+# native libraries and unlock real Real-ESRGAN inference. Default build
+# uses MockAiBackend and stays fast/light.
+ort = { version = "=2.0.0-rc.12", optional = true, default-features = false, features = ["std", "ndarray", "download-binaries", "tls-rustls"] }
+ort-sys = { version = "=2.0.0-rc.12", optional = true }
+ndarray = { version = "0.17", optional = true }
+
+# Windows-specific
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_Ioctl",
+    "Win32_Devices_DeviceAndDriverInstallation",
+    "Win32_Security",
+    "Win32_System_Threading",
+] }
+
+[features]
+# v1 default: NO statically-linked ONNX. Ships one installer for all CPUs.
+# AI restoration becomes a v1.1 optional download (loaded dynamically).
+# Builds CAN still opt into ONNX with: cargo build --features onnx
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+# Real ONNX Runtime inference (Real-ESRGAN, RIFE, DeepFilterNet).
+# Enabled by default in production builds. The runtime DLL is downloaded
+# on first AI use (~50MB) so the installer stays small.
+onnx = ["dep:ort", "dep:ort-sys", "dep:ndarray"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

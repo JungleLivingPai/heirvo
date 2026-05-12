@@ -1,0 +1,39 @@
+DVD Rescue — End User License Agreement
+
+Copyright (c) 2026 DVD Rescue contributors. All rights reserved.
+
+This software is provided "AS IS" without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose and noninfringement. In no event shall
+the authors or copyright holders be liable for any claim, damages or other
+liability, whether in an action of contract, tort or otherwise, arising
+from, out of or in connection with the software or the use or other
+dealings in the software.
+
+THIRD-PARTY COMPONENTS
+
+This software bundles or links to the following third-party components,
+each under its own license:
+
+- FFmpeg (https://ffmpeg.org) — LGPL-2.1+. Bundled binaries from
+  gyan.dev's "essentials" build are LGPL with no GPL components.
+  We invoke FFmpeg as a subprocess; we do not statically link against it.
+
+- ONNX Runtime (https://onnxruntime.ai) — MIT License. Optional dependency,
+  enabled at build time via the `onnx` Cargo feature.
+
+- AI models (Real-ESRGAN, RIFE, GFPGAN, BasicVSR, DeepFilterNet) —
+  individual licenses; check each model's source repository before
+  redistributing model weights.
+
+- Tauri (https://tauri.app) — Apache-2.0 / MIT dual.
+
+- Rust crates listed in src-tauri/Cargo.lock — see each crate's individual
+  license.
+
+LIMITATIONS OF USE
+
+This software is intended for personal recovery of damaged optical media
+that the user owns. Users are responsible for ensuring their use complies
+with copyright law in their jurisdiction. The software does not include
+CSS decryption or other DRM-circumvention features.

@@ -1,0 +1,21 @@
+[package]
+name = "synth-disc"
+version = "0.1.0"
+edition = "2021"
+description = "Synthetic damaged DVD-ISO generator for DVD-Recovery testing"
+
+[[bin]]
+name = "synth-disc"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+rand = "0.8"
+rand_chacha = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+[profile.dev]
+opt-level = 0
