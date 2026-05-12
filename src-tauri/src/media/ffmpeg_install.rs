@@ -15,13 +15,15 @@ use std::path::Path;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
-/// Primary: GitHub Releases CDN mirror of the Gyan essentials build (Windows x64).
+/// Primary: direct gyan.dev URL (stable filename across versions).
 const FFMPEG_DOWNLOAD_URL: &str =
-    "https://github.com/GyanD/codexffmpeg/releases/latest/download/ffmpeg-release-essentials.zip";
-
-/// Fallback: direct gyan.dev URL.
-const FFMPEG_DOWNLOAD_URL_FALLBACK: &str =
     "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
+
+/// Fallback: GitHub Releases API — find the latest *essentials_build.zip asset.
+/// (Asset filename embeds the version, e.g. `ffmpeg-8.1.1-essentials_build.zip`,
+/// so we can't hardcode it; we resolve it dynamically.)
+const FFMPEG_GH_API_LATEST: &str =
+    "https://api.github.com/repos/GyanD/codexffmpeg/releases/latest";
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -69,25 +71,68 @@ pub async fn install(app: AppHandle) -> AppResult<String> {
         .build()
         .map_err(|e| AppError::Internal(format!("reqwest builder: {e}")))?;
 
-    // Try primary URL (GitHub CDN), fall back to gyan.dev on any error.
-    let resp = match client.get(FFMPEG_DOWNLOAD_URL).send().await {
-        Ok(r) => r
-            .error_for_status()
-            .map_err(|e| AppError::Media(format!("download: {e}")))?,
-        Err(_) => {
+    // Try primary URL (gyan.dev — stable filename). Fall back on BOTH transport
+    // errors AND HTTP error status (404, 503, etc.) by resolving the real GitHub
+    // asset URL via the API.
+    let try_primary = async {
+        client
+            .get(FFMPEG_DOWNLOAD_URL)
+            .send()
+            .await
+            .and_then(|r| r.error_for_status())
+    };
+
+    let resp = match try_primary.await {
+        Ok(r) => r,
+        Err(primary_err) => {
             emit(InstallProgress {
                 stage: InstallStage::Starting,
                 bytes_done: 0,
                 bytes_total: 0,
-                message: "Trying mirror…".into(),
+                message: "Primary mirror unavailable, trying GitHub…".into(),
             });
-            client
-                .get(FFMPEG_DOWNLOAD_URL_FALLBACK)
+
+            // Resolve the real download URL from the GitHub Releases API.
+            let api_resp = client
+                .get(FFMPEG_GH_API_LATEST)
+                .header("Accept", "application/vnd.github+json")
                 .send()
                 .await
-                .map_err(|e| AppError::Media(format!("download: {e}")))?
-                .error_for_status()
-                .map_err(|e| AppError::Media(format!("download: {e}")))?
+                .and_then(|r| r.error_for_status())
+                .map_err(|e| {
+                    AppError::Media(format!("download: primary={primary_err} fallback_api={e}"))
+                })?;
+
+            let json: serde_json::Value = api_resp
+                .json()
+                .await
+                .map_err(|e| AppError::Media(format!("download: parse GitHub API json: {e}")))?;
+
+            let asset_url = json["assets"]
+                .as_array()
+                .and_then(|assets| {
+                    assets.iter().find_map(|a| {
+                        let name = a["name"].as_str()?;
+                        if name.ends_with("essentials_build.zip") {
+                            a["browser_download_url"].as_str().map(String::from)
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .ok_or_else(|| {
+                    AppError::Media(
+                        "download: no essentials_build.zip asset in latest GitHub release"
+                            .into(),
+                    )
+                })?;
+
+            client
+                .get(&asset_url)
+                .send()
+                .await
+                .and_then(|r| r.error_for_status())
+                .map_err(|e| AppError::Media(format!("download: github asset: {e}")))?
         }
     };
 

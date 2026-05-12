@@ -42,7 +42,8 @@
     "shortDescription": "Recover damaged DVDs, photo CDs, and audio CDs",
     "longDescription": "Heirvo rescues data from damaged optical media — DVDs, photo CDs, document CDs, audio CDs. Multi-pass sector recovery, resumable sessions, AI restoration. Built for non-technical users.",
     "resources": [
-      "resources/ffmpeg/*"
+      "resources/ffmpeg/ffmpeg.exe",
+      "resources/ffmpeg/ffprobe.exe"
     ],
     "windows": {
       "webviewInstallMode": {

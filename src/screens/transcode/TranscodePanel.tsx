@@ -193,7 +193,7 @@ export function TranscodePanel() {
         <Field label="Input file (VOB or ISO mount path)">
           <div className="flex gap-2">
             <input
-              className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+              className="flex-1 rounded-md border border-zinc-300 bg-white text-zinc-900 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
               placeholder="C:\\path\\to\\VTS_01_1.VOB"
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -231,7 +231,7 @@ export function TranscodePanel() {
 
         <Field label="Output file">
           <input
-            className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-md border border-zinc-300 bg-white text-zinc-900 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
             placeholder="C:\\path\\to\\output.mp4"
             value={output}
             onChange={(e) => setOutput(e.target.value)}
@@ -241,7 +241,7 @@ export function TranscodePanel() {
         <div className="grid grid-cols-2 gap-4">
           <Field label="Codec">
             <select
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-zinc-300 bg-white text-zinc-900 px-3 py-2 text-sm"
               value={codec}
               onChange={(e) => setCodec(e.target.value as OutputCodec)}
             >
@@ -252,7 +252,7 @@ export function TranscodePanel() {
           </Field>
           <Field label="Quality">
             <select
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-zinc-300 bg-white text-zinc-900 px-3 py-2 text-sm"
               value={quality}
               onChange={(e) => setQuality(e.target.value as QualityPreset)}
             >
