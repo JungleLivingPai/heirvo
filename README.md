@@ -2,117 +2,119 @@
 
 > *Retrieving memories before they are lost forever.*
 
-Rescue irreplaceable home video DVDs and photo CDs — even when they won't play. Built with Rust + Tauri + React.
+Recover files from scratched, damaged, or aging DVDs, photo CDs, audio CDs, and data discs — even when the disc won't play in a normal player. Built with Rust + Tauri 2 + React.
 
-**Free** to recover anything. **Heirvo Pro ($39 one-time)** unlocks save: MP4, ISO, individual chapters, all files, AI restoration. No subscription.
+[**heirvo.com**](https://heirvo.com) · [Download](https://heirvo.com/download) · [Mail-in service](https://heirvo.com/recover)
 
-## Status
+---
 
-**Phase 0 — Scaffold complete.** All foundational modules in place:
-- ✅ Tauri 2 + Vite + React + TypeScript shell
-- ✅ Rust core library structure (`disc/`, `recovery/`, `session/`, `dvd/`, `media/`, `ai/`)
-- ✅ Windows SCSI pass-through sector reader (READ(10), READ CAPACITY, INQUIRY)
-- ✅ Multi-pass recovery engine (Triage → SlowRead → Reverse → ThermalPause)
-- ✅ Packed sector map with zstd persistence (~573KB per DVD)
-- ✅ SQLite session store with sqlx migrations
-- ✅ Resume support — sector map restored on session load
-- ✅ Tauri IPC commands wired end-to-end with typed TS bindings
-- ✅ React UI: 5-step Recovery Wizard, live Dashboard, sector map heatmap
+## What it does
 
-**Stubbed (next phases):**
-- DVD IFO/BUP parser (Phase 1)
-- ISO assembly + FFmpeg transcoding (Phase 2)
-- AI enhancement: Real-ESRGAN, RIFE, DeepFilterNet (Phase 4)
+| Tier | Price | Capabilities |
+|---|---|---|
+| **Heirvo Free** | $0 | Recover any disc · multi-pass sector recovery · resumable sessions · view what was recovered |
+| **Heirvo Pro** | $39 one-time | Save as MP4 (lossless) · save as ISO · extract chapters · recover all data files · AI restoration · priority support |
+| **Mail-in service** | $89+ | Ship us the disc — we handle everything. For users without a DVD drive. |
 
-## Prerequisites
-
-- **Node.js** 20+
-- **Rust** 1.75+ (`rustup install stable`)
-- **Visual Studio Build Tools** (for the MSVC toolchain on Windows)
-- **WebView2** runtime (preinstalled on Windows 11)
-
-## Setup
-
-```bash
-npm install
-```
-
-This pulls down JS deps and `npm run tauri dev` will trigger Cargo on first run.
-
-## Run in development
-
-```bash
-npm run tauri dev
-```
-
-The app launches with Rust backend + Vite HMR frontend. Logs print to the terminal.
-
-## Build a release installer
-
-```bash
-npm run tauri build
-```
-
-Produces an NSIS `.exe` installer and an MSI under `src-tauri/target/release/bundle/`.
-
-### AI features (optional `onnx` Cargo feature)
-
-By default the app uses `MockAiBackend` for AI dispatch — proves the
-end-to-end pipeline works but doesn't actually upscale frames. To enable real
-Real-ESRGAN inference via ONNX Runtime + DirectML:
-
-```bash
-npm run tauri build -- --features onnx
-```
-
-Or for dev:
-
-```bash
-cargo run --features onnx
-```
-
-This pulls in `ort` (~50MB of native libraries) and routes the active backend
-through DirectML (NVIDIA / AMD / Intel GPUs on Windows). The `MockAiBackend`
-remains as a runtime fallback if the ONNX runtime DLL fails to load.
-
-You'll also need to install actual ONNX model files. The app shows a
-**Download** button in the Enhancement screen for any model that has a
-configured URL. Models without a configured URL can be installed manually:
-drop the `.onnx` file at `%APPDATA%\com.heirvo.app\models\<model_id>.onnx`
-and the catalog will detect it automatically.
-
-## Project layout
+## Repository layout
 
 ```
-dvd-recovery/
-├── src/                      React frontend (TypeScript)
-│   ├── app/                  Top-level App + routing
-│   ├── screens/              Wizard, Dashboard, History, Enhancement
-│   └── lib/                  Typed IPC bindings, types, utilities
-├── src-tauri/                Rust backend
+Heirvo/
+├── src/                    React frontend (desktop app)
+│   ├── app/                Routing + top-level App
+│   ├── screens/            Wizard, Dashboard, Transcode, Enhancement
+│   └── lib/                Typed IPC bindings, types, utilities
+│
+├── src-tauri/              Rust backend
 │   ├── src/
-│   │   ├── disc/             SCSI I/O, drive enumeration, sector reader
-│   │   ├── recovery/         Sector map, multi-pass engine
-│   │   ├── session/          SQLite persistence, resume logic
-│   │   ├── dvd/              IFO/BUP parsing (stub)
-│   │   ├── media/            FFmpeg pipeline (stub)
-│   │   ├── ai/               Enhancement pipeline (stub)
-│   │   ├── commands/         Tauri IPC handlers
-│   │   ├── error.rs          App-wide error type
-│   │   ├── state.rs          Global state managed by Tauri
-│   │   └── lib.rs            Tauri builder + handler registration
-│   ├── migrations/           SQLite migration files
-│   └── Cargo.toml
+│   │   ├── disc/           SCSI I/O, drive enumeration, sector reader
+│   │   ├── recovery/       Sector map, multi-pass engine
+│   │   ├── session/        SQLite persistence, resume logic
+│   │   ├── dvd/            IFO/BUP parser
+│   │   ├── media/          FFmpeg pipeline (transcode, probe)
+│   │   ├── ai/             Enhancement pipeline (Real-ESRGAN, etc.)
+│   │   ├── commands/       Tauri IPC handlers
+│   │   └── lib.rs          Tauri builder + handler registration
+│   ├── icons/              Generated icons (all sizes)
+│   ├── resources/ffmpeg/   Bundled ffmpeg.exe + ffprobe.exe (gitignored)
+│   ├── installer-sidebar.bmp
+│   └── tauri.conf.json
+│
+├── marketing/              Marketing site → heirvo.com (deployed via Vercel)
+│   ├── src/pages/          LandingMin1, RecoverH, Download, Activate, etc.
+│   ├── src/components/     Nav, Footer, sections, etc.
+│   └── public/assets/      Hero images, social-share images
+│
+├── assets/                 Source assets (icon.png — kintsugi disc design)
+├── docs/                   Design docs (recovery engine, FFmpeg, AI, etc.)
+├── scripts/                Dev scripts (fetch-ffmpeg.ps1)
+├── tools/                  Test tools (synth-disc — synthetic damaged disc generator)
+├── README.md, LICENSE, TESTERS.md
 └── package.json
 ```
 
-## Architecture overview
+## Prerequisites (development)
 
-See the in-repo design doc — the recovery engine is modeled on GNU ddrescue's
-multi-pass strategy but adapted for DVD geometry. Sector reading goes through
-the Windows SCSI pass-through IOCTL; the engine is decoupled via the
-`SectorReader` trait so future Mac/Linux backends and test mocks slot in cleanly.
+- **Node.js** 20+
+- **Rust** 1.75+ (`rustup install stable`)
+- **Visual Studio Build Tools 2022** (MSVC toolchain on Windows)
+- **WebView2 Runtime** (preinstalled on Windows 11)
+
+## Quick start
+
+```powershell
+# Install JS deps
+npm install
+
+# Fetch FFmpeg binaries into src-tauri/resources/ffmpeg/ (~80 MB download, idempotent)
+pwsh ./scripts/fetch-ffmpeg.ps1
+
+# Run the desktop app in dev mode (Rust backend + Vite HMR)
+npm run tauri dev
+
+# Build a release installer (NSIS .exe in src-tauri/target/release/bundle/nsis/)
+npm run tauri build
+```
+
+## Marketing site
+
+The marketing site is in `marketing/` and deploys to [heirvo.com](https://heirvo.com) via Vercel.
+
+```powershell
+cd marketing
+npm install
+npm run dev      # local preview at http://localhost:5173
+vercel --prod    # deploy to production (heirvo.com)
+```
+
+Required env vars (set in Vercel dashboard + `marketing/.env`):
+- `VITE_FORMSPREE_ID` — Mail-in order form endpoint
+- `VITE_STRIPE_INTAKE_URL` — $19.99 mail-in intake fee payment link
+- `VITE_LS_CHECKOUT_URL` — Lemon Squeezy Pro license checkout URL
+- `VITE_DOWNLOAD_URL` — GitHub Release installer URL
+
+## AI features (optional `onnx` Cargo feature)
+
+By default the app uses `MockAiBackend` for AI dispatch. To enable Real-ESRGAN inference via ONNX Runtime + DirectML:
+
+```powershell
+npm run tauri build -- --features onnx
+```
+
+ONNX models live at `%APPDATA%\com.heirvo.app\models\<model_id>.onnx`.
+
+## Architecture
+
+The recovery engine is modeled on GNU ddrescue's multi-pass strategy but adapted for DVD geometry. Sector reading goes through the Windows SCSI pass-through IOCTL; the engine is decoupled via the `SectorReader` trait so future macOS/Linux backends and test mocks slot in cleanly.
+
+See [`docs/`](./docs/) for full design notes:
+- [`recovery-engine.md`](./docs/recovery-engine.md) — Multi-pass strategy
+- [`dvd-video.md`](./docs/dvd-video.md) — DVD-Video format handling
+- [`ffmpeg-pipeline.md`](./docs/ffmpeg-pipeline.md) — Transcode pipeline
+- [`ai-restoration.md`](./docs/ai-restoration.md) — Enhancement pipeline
+- [`windows-native.md`](./docs/windows-native.md) — SCSI pass-through quirks
+- [`product-vision.md`](./docs/product-vision.md) — Long-term direction
 
 ## License
 
-TBD — must be GPL-compatible due to libdvdread linkage.
+See [LICENSE](./LICENSE). Heirvo bundles FFmpeg under LGPL-2.1+ as a separate binary (no static linking). The app does not include CSS decryption or DRM-circumvention features — it is positioned as a recovery tool for discs the user owns.
