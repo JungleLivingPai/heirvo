@@ -36,11 +36,33 @@ const FFPROBE_BIN: &str = "ffprobe";
 
 /// Locate ffmpeg/ffprobe in priority order. Returns `None` if not found.
 pub fn locate(app: &AppHandle, binary: &str) -> Option<PathBuf> {
-    // 1. Bundled resource.
+    // 1. Bundled resource — check known layouts. Tauri 2's `resource_dir()`
+    //    returns the install root on Windows NSIS (not `<root>/resources/`),
+    //    so we have to look in both places to be safe across bundle types.
     if let Ok(resource_dir) = app.path().resource_dir() {
+        // Layout A: <resource_dir>/ffmpeg/<binary>
         let p = resource_dir.join("ffmpeg").join(binary);
         if p.exists() {
             return Some(p);
+        }
+        // Layout B: <resource_dir>/resources/ffmpeg/<binary>
+        let p = resource_dir.join("resources").join("ffmpeg").join(binary);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    // 1b. Walk up from the running exe — handles edge cases where
+    //     resource_dir() points to a portable AppData layout.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let p = parent.join("resources").join("ffmpeg").join(binary);
+            if p.exists() {
+                return Some(p);
+            }
+            let p = parent.join("ffmpeg").join(binary);
+            if p.exists() {
+                return Some(p);
+            }
         }
     }
     // 2. App data dir (downloaded).

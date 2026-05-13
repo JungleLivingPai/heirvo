@@ -1,37 +1,70 @@
 import { useEffect, useState } from "react";
+import {
+  open as openDialog,
+  save as saveDialog,
+} from "@tauri-apps/plugin-dialog";
+import { openPath, revealItemInDir, openUrl } from "@tauri-apps/plugin-opener";
 import { ipc, events } from "@/lib/ipc";
 import type {
   FfmpegStatus,
-  InstallProgress,
-  OutputCodec,
   ProbeResult,
   QualityPreset,
   TranscodeProgress,
+  InstallProgress,
 } from "@/lib/types";
-import { Film, Loader2, AlertTriangle, CheckCircle2, Download } from "lucide-react";
+import {
+  Film,
+  Loader2,
+  CheckCircle2,
+  Download,
+  AlertTriangle,
+  Play,
+  FolderOpen,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 
+/**
+ * "Save a video" panel — second-pass redesign.
+ *
+ * Replaces the engineer-style FFmpeg config GUI that exposed codec dropdowns,
+ * CRF acronyms, deinterlace/denoise library names, and a "Probe" button.
+ * The new panel speaks to a 50-75 year-old non-technical user:
+ *
+ *   - One primary action per state (pick file → choose feel → save → done)
+ *   - Native Windows Open/Save dialogs — no typed paths
+ *   - Auto-probe runs silently on file pick
+ *   - Codec is silently H.264 (the only option that plays everywhere)
+ *   - Deinterlace is auto-detected from probe results, no checkbox
+ *   - Denoise lives only behind "Advanced settings"
+ *   - Quality collapses from 4 CRF tiers to 3 plain-English presets
+ *   - Progress shows "about X minutes left" — never frame counts or fps
+ */
 export function TranscodePanel() {
   const [status, setStatus] = useState<FfmpegStatus | null>(null);
-  const [input, setInput] = useState("");
-  const [output, setOutput] = useState("");
-  const [codec, setCodec] = useState<OutputCodec>("h264");
-  const [quality, setQuality] = useState<QualityPreset>("streaming");
-  const [deinterlace, setDeinterlace] = useState(true);
-  const [denoise, setDenoise] = useState(false);
+  const [input, setInput] = useState<string>("");
+  const [output, setOutput] = useState<string>("");
   const [probe, setProbe] = useState<ProbeResult | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [quality, setQuality] = useState<QualityPreset>("high_quality"); // "Standard"
+  const [denoise, setDenoise] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [progress, setProgress] = useState<TranscodeProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const refreshStatus = () => ipc.ffmpegStatus().then(setStatus).catch(() => {});
+  // FFmpeg install (only used in the very rare case bundling failed)
+  const [install, setInstall] = useState<InstallProgress | null>(null);
+  const [installing, setInstalling] = useState(false);
+
+  const refreshStatus = () =>
+    ipc.ffmpegStatus().then(setStatus).catch(() => {});
 
   useEffect(() => {
     refreshStatus();
   }, []);
-
-  const [install, setInstall] = useState<InstallProgress | null>(null);
-  const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
     const sub = events.onFfmpegInstallProgress((p) => {
@@ -50,11 +83,21 @@ export function TranscodePanel() {
 
   const downloadFfmpeg = async () => {
     setInstalling(true);
-    setInstall({ stage: "starting", bytes_done: 0, bytes_total: 0, message: "Starting…" });
+    setInstall({
+      stage: "starting",
+      bytes_done: 0,
+      bytes_total: 0,
+      message: "Starting…",
+    });
     try {
       await ipc.installFfmpeg();
     } catch (e) {
-      setInstall({ stage: "failed", bytes_done: 0, bytes_total: 0, message: String(e) });
+      setInstall({
+        stage: "failed",
+        bytes_done: 0,
+        bytes_total: 0,
+        message: String(e),
+      });
       setInstalling(false);
     }
   };
@@ -76,34 +119,67 @@ export function TranscodePanel() {
     };
   }, [jobId]);
 
-  const probeInput = async () => {
-    if (!input) return;
+  // Pick a source file with the native Open dialog, then auto-probe it.
+  const pickInputFile = async () => {
+    const picked = await openDialog({
+      multiple: false,
+      filters: [
+        {
+          name: "Rescued video",
+          extensions: ["vob", "iso", "mp4", "mkv", "avi", "mov", "m2ts", "ts"],
+        },
+        { name: "All files", extensions: ["*"] },
+      ],
+    });
+    if (!picked || Array.isArray(picked)) return;
+    setInput(picked);
+    setProbe(null);
+    setProbing(true);
     setError(null);
     try {
-      const p = await ipc.ffprobeFile(input);
+      const p = await ipc.ffprobeFile(picked);
       setProbe(p);
-      if (p.interlaced) setDeinterlace(true);
-      if (!output) {
-        const dot = input.lastIndexOf(".");
-        const stem = dot > 0 ? input.slice(0, dot) : input;
-        setOutput(`${stem}_recovered.mp4`);
-      }
+      // Suggest an output filename next to the input, with " - Rescued.mp4".
+      const lastDot = picked.lastIndexOf(".");
+      const stem = lastDot > 0 ? picked.slice(0, lastDot) : picked;
+      setOutput(`${stem} - Rescued.mp4`);
     } catch (e) {
       setError(String(e));
+    } finally {
+      setProbing(false);
     }
   };
 
+  // Save dialog — pick where the MP4 goes.
+  const chooseOutput = async (): Promise<string | null> => {
+    const baseName =
+      output.split(/[\\/]/).pop()?.replace(/\.mp4$/i, "") || "Rescued video";
+    const picked = await saveDialog({
+      defaultPath: output || `${baseName}.mp4`,
+      filters: [{ name: "MP4 video", extensions: ["mp4"] }],
+    });
+    return picked ?? null;
+  };
+
   const start = async () => {
+    if (!input || !probe) return;
+    let dest = output;
+    // Always confirm with Save dialog — user expects "we'll ask you where".
+    const chosen = await chooseOutput();
+    if (!chosen) return; // user cancelled
+    dest = chosen;
+    setOutput(dest);
+
     setError(null);
     setDone(false);
     setProgress(null);
     try {
       const { job_id } = await ipc.transcode({
         input,
-        output,
-        codec,
+        output: dest,
+        codec: "h264", // hard-coded — only universally-compatible option
         quality,
-        deinterlace,
+        deinterlace: probe.interlaced, // automatic from probe
         denoise,
         resolution: null,
       });
@@ -113,67 +189,71 @@ export function TranscodePanel() {
     }
   };
 
+  const reset = () => {
+    setInput("");
+    setOutput("");
+    setProbe(null);
+    setJobId(null);
+    setProgress(null);
+    setDone(false);
+    setError(null);
+  };
+
+  const minutesLeft = (() => {
+    if (!probe || !progress || probe.duration_secs <= 0 || progress.speed <= 0)
+      return null;
+    const done_secs = progress.out_time_us / 1_000_000;
+    const remaining_secs = (probe.duration_secs - done_secs) / progress.speed;
+    if (!Number.isFinite(remaining_secs) || remaining_secs < 0) return null;
+    if (remaining_secs < 60) return "less than a minute";
+    return `about ${Math.round(remaining_secs / 60)} minute${
+      Math.round(remaining_secs / 60) === 1 ? "" : "s"
+    }`;
+  })();
+
   const pct =
     probe && progress && probe.duration_secs > 0
-      ? Math.min(100, (progress.out_time_us / 1_000_000 / probe.duration_secs) * 100)
+      ? Math.min(
+          100,
+          (progress.out_time_us / 1_000_000 / probe.duration_secs) * 100,
+        )
       : null;
 
-  return (
-    <div className="space-y-6">
-      <div className="card">
-        <div className="mb-3 flex items-center gap-2 text-sm text-zinc-400">
-          <Film className="h-4 w-4" />
-          <span>FFmpeg</span>
-        </div>
-        {status === null ? (
-          <p className="text-sm text-zinc-500">Checking…</p>
-        ) : status.available ? (
-          <p className="text-sm text-emerald-400">
-            <CheckCircle2 className="mr-1 inline h-4 w-4" />
-            {status.version ?? "ffmpeg available"}
-          </p>
-        ) : (
-          <div>
-            <p className="text-sm text-amber-400">
-              <AlertTriangle className="mr-1 inline h-4 w-4" />
-              FFmpeg not found.
-            </p>
-            <p className="mt-1 text-xs text-zinc-500">
-              Click below to download the latest LGPL build (~80 MB) from{" "}
-              <a
-                className="underline"
-                href="https://www.gyan.dev/ffmpeg/builds/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                gyan.dev
-              </a>
-              . It will be installed into your app data folder; no admin required.
+  // STATE: FFmpeg missing (rare — bundled now)
+  if (status && !status.available) {
+    return (
+      <div className="rounded-3xl border border-ink-200/70 bg-white/80 p-8 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-display text-[20px] font-semibold text-ink-900">
+              One quick setup step
+            </h2>
+            <p className="mt-1 text-[15px] leading-[1.55] text-ink-600">
+              Heirvo needs a small free helper to save your video (about 80 MB).
+              It installs into your own user folder — you don't need a password
+              or administrator access.
             </p>
             <button
-              className="btn btn-primary mt-3"
+              type="button"
               onClick={downloadFfmpeg}
               disabled={installing}
+              className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-brand-600 px-5 py-2.5 text-[15px] font-medium text-white shadow-glow-blue transition hover:bg-brand-500 disabled:opacity-50"
             >
               {installing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Download className="h-4 w-4" />
               )}
-              Download FFmpeg
+              {installing ? "Installing helper…" : "Install helper"}
             </button>
-            {install && (
-              <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950 p-3 text-xs">
-                <div className="mb-1 flex justify-between">
-                  <span className="capitalize text-zinc-400">{install.stage}</span>
-                  {install.bytes_total > 0 && (
-                    <span className="text-zinc-500">
-                      {((install.bytes_done / install.bytes_total) * 100).toFixed(0)}%
-                    </span>
-                  )}
-                </div>
+            {install && installing && (
+              <div className="mt-3 rounded-xl border border-ink-200 bg-ink-50 p-3 text-xs text-ink-600">
+                {install.message}
                 {install.bytes_total > 0 && (
-                  <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-200">
                     <div
                       className="h-full bg-brand-600 transition-all"
                       style={{
@@ -182,150 +262,449 @@ export function TranscodePanel() {
                     />
                   </div>
                 )}
-                <div className="text-zinc-300">{install.message}</div>
               </div>
             )}
+            <p className="mt-3 text-[12px] text-ink-500">
+              We download the LGPL build from{" "}
+              <button
+                type="button"
+                className="underline hover:text-brand-600"
+                onClick={() => {
+                  void openUrl("https://www.gyan.dev/ffmpeg/builds/");
+                }}
+              >
+                gyan.dev
+              </button>
+              .
+            </p>
           </div>
-        )}
+        </div>
       </div>
+    );
+  }
 
-      <div className="card space-y-4">
-        <Field label="Input file (VOB or ISO mount path)">
-          <div className="flex gap-2">
-            <input
-              className="flex-1 rounded-md border border-zinc-300 bg-white text-zinc-900 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-              placeholder="C:\\path\\to\\VTS_01_1.VOB"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+  // STATE: Saving (job in flight)
+  if (jobId && !done && !error) {
+    return (
+      <div className="rounded-3xl border border-ink-200/70 bg-white/80 p-8 shadow-sm">
+        <div className="flex items-center gap-3">
+          <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
+          <h2 className="font-display text-[22px] font-semibold tracking-[-0.02em] text-ink-900">
+            Saving your video…
+          </h2>
+        </div>
+        <p className="mt-2 text-[15px] leading-[1.55] text-ink-700">
+          <span className="font-medium">
+            {output.split(/[\\/]/).pop() || "Rescued video.mp4"}
+          </span>
+        </p>
+
+        <div className="mt-6">
+          <div className="h-3 w-full overflow-hidden rounded-full bg-ink-100">
+            <div
+              className="h-full rounded-full bg-brand-600 transition-[width] duration-500 ease-out"
+              style={{ width: `${pct ?? 0}%` }}
             />
-            <button className="btn btn-ghost" onClick={probeInput} disabled={!input}>
-              Probe
-            </button>
           </div>
-        </Field>
-
-        {probe && (
-          <dl className="grid grid-cols-3 gap-2 text-xs text-zinc-400">
-            <div>
-              <dt>Duration</dt>
-              <dd className="text-zinc-200">{probe.duration_secs.toFixed(1)}s</dd>
-            </div>
-            <div>
-              <dt>Resolution</dt>
-              <dd className="text-zinc-200">{probe.width}×{probe.height}</dd>
-            </div>
-            <div>
-              <dt>Codec</dt>
-              <dd className="text-zinc-200">{probe.video_codec}</dd>
-            </div>
-            <div>
-              <dt>Audio</dt>
-              <dd className="text-zinc-200">{probe.audio_codec}</dd>
-            </div>
-            <div>
-              <dt>Interlaced</dt>
-              <dd className="text-zinc-200">{probe.interlaced ? "Yes" : "No"}</dd>
-            </div>
-          </dl>
-        )}
-
-        <Field label="Output file">
-          <input
-            className="w-full rounded-md border border-zinc-300 bg-white text-zinc-900 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-            placeholder="C:\\path\\to\\output.mp4"
-            value={output}
-            onChange={(e) => setOutput(e.target.value)}
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Codec">
-            <select
-              className="w-full rounded-md border border-zinc-300 bg-white text-zinc-900 px-3 py-2 text-sm"
-              value={codec}
-              onChange={(e) => setCodec(e.target.value as OutputCodec)}
-            >
-              <option value="h264">H.264 (broadest compatibility)</option>
-              <option value="h265">H.265 / HEVC (smaller files)</option>
-              <option value="av1">AV1 (best quality/size)</option>
-            </select>
-          </Field>
-          <Field label="Quality">
-            <select
-              className="w-full rounded-md border border-zinc-300 bg-white text-zinc-900 px-3 py-2 text-sm"
-              value={quality}
-              onChange={(e) => setQuality(e.target.value as QualityPreset)}
-            >
-              <option value="archive">Archive (CRF 14–22, large)</option>
-              <option value="high_quality">High quality (CRF 18–28)</option>
-              <option value="streaming">Streaming (CRF 23–34)</option>
-              <option value="mobile">Mobile (CRF 26–38)</option>
-            </select>
-          </Field>
+          <div className="mt-2 flex items-center justify-between text-[13px] text-ink-500">
+            <span>
+              {minutesLeft
+                ? `${minutesLeft} left`
+                : "Working out how long this will take…"}
+            </span>
+            {pct !== null && <span>{pct.toFixed(0)}%</span>}
+          </div>
         </div>
 
-        <div className="flex gap-6">
-          <Toggle label="Deinterlace (bwdif)" checked={deinterlace} onChange={setDeinterlace} />
-          <Toggle label="Denoise (hqdn3d)" checked={denoise} onChange={setDenoise} />
+        <p className="mt-6 text-[13px] leading-[1.55] text-ink-500">
+          It's safe to leave this window open and do something else. We'll let
+          you know when it's done.
+        </p>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={reset}
+            className="text-[13px] text-ink-500 underline-offset-4 hover:text-ink-700 hover:underline"
+          >
+            Cancel
+          </button>
         </div>
-
-        <button
-          className="btn btn-primary"
-          onClick={start}
-          disabled={!input || !output || !status?.available || (jobId !== null && !done && !error)}
-        >
-          {jobId && !done && !error && <Loader2 className="h-4 w-4 animate-spin" />}
-          Start transcode
-        </button>
-
-        {progress && (
-          <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-xs">
-            <div className="mb-1 flex justify-between">
-              <span>
-                Frame {progress.frame.toLocaleString()} · {progress.fps.toFixed(1)} fps ·{" "}
-                {progress.speed.toFixed(2)}×
-              </span>
-              {pct !== null && <span>{pct.toFixed(1)}%</span>}
-            </div>
-            {pct !== null && (
-              <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
-                <div
-                  className="h-full bg-brand-600 transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {done && <p className="text-sm text-emerald-400">✓ Transcode complete</p>}
-        {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
+    );
+  }
+
+  // STATE: Done
+  if (done && output) {
+    const folder = output.replace(/[\\/][^\\/]+$/, "");
+    const filename = output.split(/[\\/]/).pop() || "Rescued video.mp4";
+    return (
+      <div className="rounded-3xl border border-emerald-200/70 bg-emerald-50/40 p-8 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-display text-[22px] font-semibold tracking-[-0.02em] text-ink-900">
+              Done. Your video is saved.
+            </h2>
+            <p className="mt-1 text-[15px] leading-[1.55] text-ink-700">
+              <span className="font-medium">{filename}</span>
+              {probe && (
+                <>
+                  {" "}
+                  · {formatDuration(probe.duration_secs)}
+                </>
+              )}
+            </p>
+            <p className="mt-1 text-[13px] text-ink-500">
+              Saved to: <span className="font-mono">{folder || "your computer"}</span>
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  void openPath(output);
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl bg-brand-600 px-4 py-2 text-[14px] font-medium text-white shadow-glow-blue transition hover:bg-brand-500"
+              >
+                <Play className="h-4 w-4" />
+                Play it now
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void revealItemInDir(output);
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl border border-ink-200 bg-white px-4 py-2 text-[14px] font-medium text-ink-700 transition hover:bg-ink-50"
+              >
+                <FolderOpen className="h-4 w-4" />
+                Show me the file
+              </button>
+              <button
+                type="button"
+                onClick={reset}
+                className="inline-flex items-center gap-2 rounded-2xl border border-ink-200 bg-white px-4 py-2 text-[14px] font-medium text-ink-700 transition hover:bg-ink-50"
+              >
+                Save another video
+              </button>
+            </div>
+
+            <p className="mt-5 text-[13px] leading-[1.55] text-ink-500">
+              <span className="font-medium text-ink-700">Tip:</span> this file
+              plays on any phone, TV, or computer. Email it, put it on a USB
+              stick, or upload it to Google Photos to keep it safe forever.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // STATE: Error
+  if (error) {
+    return (
+      <div className="rounded-3xl border border-ink-200/70 bg-white/80 p-8 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-display text-[20px] font-semibold text-ink-900">
+              Something went wrong while saving.
+            </h2>
+            <p className="mt-1 text-[15px] leading-[1.55] text-ink-600">
+              The original file may be damaged or unreadable. Your other files
+              are untouched.
+            </p>
+            <div className="mt-4 flex gap-2.5">
+              <button
+                type="button"
+                onClick={reset}
+                className="rounded-2xl bg-brand-600 px-5 py-2.5 text-[14px] font-medium text-white shadow-glow-blue transition hover:bg-brand-500"
+              >
+                Try a different file
+              </button>
+            </div>
+            <details className="mt-4 text-[12px] text-ink-500">
+              <summary className="cursor-pointer hover:text-ink-700">
+                Technical details
+              </summary>
+              <pre className="mt-2 overflow-auto rounded-xl bg-ink-50 p-3 text-[11px]">
+                {error}
+              </pre>
+            </details>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // STATE: Ready — empty (no file picked) or file picked (showing summary)
+  return (
+    <div className="space-y-6">
+      <div className="rounded-3xl border border-ink-200/70 bg-white/80 p-8 shadow-sm">
+        {!input ? (
+          <>
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+                <Film className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h2 className="font-display text-[20px] font-semibold text-ink-900">
+                  Pick a video to save
+                </h2>
+                <p className="mt-1 text-[15px] leading-[1.55] text-ink-600">
+                  Choose a file you've already rescued — usually a{" "}
+                  <code className="rounded bg-ink-100 px-1.5 py-0.5 text-[13px]">
+                    .VOB
+                  </code>{" "}
+                  or{" "}
+                  <code className="rounded bg-ink-100 px-1.5 py-0.5 text-[13px]">
+                    .ISO
+                  </code>{" "}
+                  file. We'll save it as a regular MP4 you can play on any phone,
+                  TV, or computer.
+                </p>
+                <button
+                  type="button"
+                  onClick={pickInputFile}
+                  className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-brand-600 px-5 py-2.5 text-[15px] font-medium text-white shadow-glow-blue transition hover:bg-brand-500"
+                >
+                  Choose a file to save…
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+                <Film className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-baseline gap-3">
+                  <h3 className="font-display text-[17px] font-semibold text-ink-900">
+                    {input.split(/[\\/]/).pop()}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={pickInputFile}
+                    className="text-[13px] text-ink-500 underline-offset-4 hover:text-ink-700 hover:underline"
+                  >
+                    Pick a different file
+                  </button>
+                </div>
+                {probing && (
+                  <p className="mt-1 inline-flex items-center gap-2 text-[14px] text-ink-500">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking
+                    your video…
+                  </p>
+                )}
+                {probe && (
+                  <p className="mt-1 text-[14px] text-ink-600">
+                    {describeProbe(probe)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {probe && (
+              <>
+                <div className="mt-7">
+                  <p className="text-[14px] font-medium text-ink-900">
+                    How will you watch it?
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    <QualityRadio
+                      checked={quality === "archive"}
+                      onChange={() => setQuality("archive")}
+                      label="Best quality"
+                      sub="Largest file. Best for archiving."
+                    />
+                    <QualityRadio
+                      checked={quality === "high_quality"}
+                      onChange={() => setQuality("high_quality")}
+                      label="Standard"
+                      sub="Recommended. Looks great on TVs and computers."
+                      recommended
+                    />
+                    <QualityRadio
+                      checked={quality === "mobile"}
+                      onChange={() => setQuality("mobile")}
+                      label="Smaller file"
+                      sub="Easier to email or fit on a phone."
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-7 flex flex-col items-start gap-2">
+                  <button
+                    type="button"
+                    onClick={start}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-brand-600 px-6 py-3 text-[15px] font-semibold text-white shadow-glow-blue transition hover:bg-brand-500"
+                  >
+                    Save my video
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                  <p className="text-[12px] text-ink-500">
+                    We'll ask you where to save it.
+                  </p>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Advanced settings — collapsed by default forever */}
+      {input && probe && (
+        <div className="rounded-2xl border border-ink-200/60 bg-white/50">
+          <button
+            type="button"
+            onClick={() => setAdvanced((v) => !v)}
+            className="flex w-full items-center justify-between px-5 py-3 text-[13px] text-ink-500 hover:text-ink-700 transition"
+          >
+            <span>Advanced settings</span>
+            {advanced ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
+          {advanced && (
+            <div className="space-y-4 border-t border-ink-200/60 px-5 py-4">
+              <label className="flex cursor-pointer items-start gap-3 text-[14px] text-ink-700">
+                <input
+                  type="checkbox"
+                  checked={denoise}
+                  onChange={(e) => setDenoise(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-brand-600"
+                />
+                <span>
+                  Reduce grain
+                  <span className="ml-1 text-[12px] text-ink-500">
+                    — can soften faces; only use on very noisy video
+                  </span>
+                </span>
+              </label>
+              <div className="text-[12px] text-ink-500">
+                <div>
+                  Video format is always <span className="font-medium">H.264 MP4</span>{" "}
+                  — the only format that plays on every device.
+                </div>
+                <div className="mt-1">
+                  We{" "}
+                  {probe.interlaced
+                    ? "automatically fixed interlacing"
+                    : "didn't need to fix interlacing"}{" "}
+                  on this file.
+                </div>
+                <details className="mt-2">
+                  <summary className="cursor-pointer hover:text-ink-700">
+                    File details
+                  </summary>
+                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                    <span>Length</span>
+                    <span>{formatDuration(probe.duration_secs)}</span>
+                    <span>Picture size</span>
+                    <span>
+                      {probe.width}×{probe.height}
+                    </span>
+                    <span>Original video format</span>
+                    <span>{probe.video_codec}</span>
+                    <span>Audio</span>
+                    <span>{probe.audio_codec}</span>
+                    <span>Interlaced</span>
+                    <span>{probe.interlaced ? "Yes" : "No"}</span>
+                  </div>
+                </details>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs uppercase tracking-wide text-zinc-500">{label}</span>
-      {children}
-    </label>
-  );
+/** Renders a probe result as ONE plain-English sentence. */
+function describeProbe(p: ProbeResult): string {
+  const length = formatDuration(p.duration_secs);
+  const size = describeResolution(p.width, p.height);
+  const interlace = p.interlaced
+    ? " We'll smooth out the flickering lines automatically."
+    : "";
+  return `${size}, ${length}.${interlace}`;
 }
 
-function Toggle({
-  label, checked, onChange,
-}: { label: string; checked: boolean; onChange: (b: boolean) => void }) {
+function formatDuration(secs: number): string {
+  if (!Number.isFinite(secs) || secs <= 0) return "—";
+  const total = Math.round(secs);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) {
+    return `${h} hour${h === 1 ? "" : "s"}${
+      m > 0 ? ` ${m} minute${m === 1 ? "" : "s"}` : ""
+    }`;
+  }
+  if (m > 0) {
+    return `${m} minute${m === 1 ? "" : "s"}${
+      s > 0 ? ` ${s} second${s === 1 ? "" : "s"}` : ""
+    }`;
+  }
+  return `${s} second${s === 1 ? "" : "s"}`;
+}
+
+function describeResolution(w: number, _h: number): string {
+  if (w >= 1920) return "HD video";
+  if (w >= 1280) return "HD video";
+  if (w >= 700) return "Standard DVD video";
+  if (w > 0) return "Video";
+  return "Video";
+}
+
+function QualityRadio({
+  checked,
+  onChange,
+  label,
+  sub,
+  recommended,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  sub: string;
+  recommended?: boolean;
+}) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-sm">
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition ${
+        checked
+          ? "border-brand-300 bg-brand-50/50"
+          : "border-ink-200 bg-white hover:border-ink-300"
+      }`}
+    >
       <input
-        type="checkbox"
+        type="radio"
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 accent-brand-600"
+        onChange={onChange}
+        className="mt-1 h-4 w-4 accent-brand-600"
       />
-      {label}
+      <span className="flex-1">
+        <span className="flex items-baseline gap-2">
+          <span className="text-[15px] font-medium text-ink-900">{label}</span>
+          {recommended && (
+            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-700">
+              Recommended
+            </span>
+          )}
+        </span>
+        <span className="mt-0.5 block text-[13px] text-ink-500">{sub}</span>
+      </span>
     </label>
   );
 }

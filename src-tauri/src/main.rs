@@ -10,7 +10,7 @@ fn main() {
     // from end users.
     install_early_panic_hook();
 
-    dvd_recovery_lib::run();
+    heirvo_lib::run();
 }
 
 fn install_early_panic_hook() {

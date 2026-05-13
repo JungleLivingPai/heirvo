@@ -21,7 +21,7 @@ const ITEMS: QA[] = [
   },
   {
     q: "Can I use this on my mom's old computer?",
-    a: "Yes. Heirvo runs on Windows 10 and 11 with modest specs — 4 GB of RAM and a USB DVD drive is enough for recovery. AI restoration is faster on newer machines but works on older ones too.",
+    a: "Yes. Heirvo runs on Windows 10 and 11 with modest specs — 4 GB of RAM and a USB disc drive (CD or DVD) is enough for recovery. AI restoration is faster on newer machines but works on older ones too.",
   },
   {
     q: "What's the file output?",

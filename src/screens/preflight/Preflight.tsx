@@ -1,14 +1,34 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, XCircle, Loader2, AlertTriangle, Download } from "lucide-react";
+import {
+  CheckCircle2,
+  Loader2,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+} from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { ipc, events } from "@/lib/ipc";
 import type { PreflightStatus, PreflightCheck } from "@/lib/types";
 
 /**
- * First-launch environment check. Verifies FFmpeg, ONNX runtime, optical
- * drives, and license status BEFORE the user encounters a "doesn't work"
- * wall. Only critical checks (FFmpeg) block "Continue"; AI/drives are
- * non-blocking — the user can still recover discs without them.
+ * First-launch welcome screen.
+ *
+ * Replaces the older "diagnostic checklist" pattern that greeted brand-new
+ * users with three amber warning triangles before they'd done anything.
+ * The new shape:
+ *
+ *   1. Big warm welcome + one obvious primary action ("Let's get started").
+ *   2. Conditional secondary CTA based on whether a drive is detected
+ *      (no drive → mail-in service; drive present → start a rescue).
+ *   3. Diagnostics survive in a collapsed "System details" footer for
+ *      the curious / for support calls — but never lead the experience.
+ *
+ * All checks are non-critical (FFmpeg ships bundled, ONNX is optional,
+ * drives can be plugged in later, license is free) so the primary CTA is
+ * always enabled. If FFmpeg bundling fails (rare), we surface the install
+ * affordance inline in the collapsed panel rather than blocking the user.
  */
 export default function Preflight() {
   const nav = useNavigate();
@@ -16,6 +36,7 @@ export default function Preflight() {
   const [error, setError] = useState<string | null>(null);
   const [installingFfmpeg, setInstallingFfmpeg] = useState(false);
   const [ffmpegProgress, setFfmpegProgress] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const refreshStatus = () => {
     ipc
@@ -26,7 +47,6 @@ export default function Preflight() {
 
   useEffect(() => {
     refreshStatus();
-    // Subscribe to FFmpeg install progress events.
     const sub = events.onFfmpegInstallProgress((p) => {
       setFfmpegProgress(`${p.stage}: ${p.message}`);
       if (p.stage === "installed") {
@@ -38,7 +58,9 @@ export default function Preflight() {
         setError(p.message);
       }
     });
-    return () => { sub.then((unsub) => unsub()); };
+    return () => {
+      sub.then((unsub) => unsub());
+    };
   }, []);
 
   const installFfmpeg = async () => {
@@ -52,123 +74,149 @@ export default function Preflight() {
     }
   };
 
-  const onContinue = async (skipAi: boolean) => {
-    void skipAi; // Currently we always store the same flag — skipAi is informational.
+  const onContinue = async (destination: string) => {
     try {
       await ipc.markPreflightSeen();
-      nav("/", { replace: true });
+      nav(destination, { replace: true });
     } catch (e) {
       setError(String(e));
     }
   };
 
-  const onnxFailedOnly = (() => {
-    if (!status) return false;
-    const onnx = status.checks.find((c) => c.id === "onnx");
-    return status.allCriticalOk && onnx?.ok === false;
-  })();
-
+  const driveReady =
+    status?.checks.find((c) => c.id === "drives")?.ok === true;
   const ffmpegMissing =
-    status?.checks.find((c) => c.id === "ffmpeg")?.ok === false;
+    status?.checks.find((c) => c.id === "ffmpeg")?.detail.toLowerCase().includes("fetch") === true;
 
   return (
     <div className="flex h-full items-center justify-center p-8">
       <div
-        className="w-full max-w-xl rounded-3xl border border-ink-200/70 bg-white/80 p-8 shadow-xl backdrop-blur"
+        className="w-full max-w-xl rounded-3xl border border-ink-200/70 bg-white/80 p-10 shadow-xl backdrop-blur"
         style={{ WebkitBackdropFilter: "blur(20px)" }}
       >
-        <h1 className="font-display text-2xl font-semibold text-ink-900">
-          Welcome to Heirvo
+        {/* Welcome */}
+        <h1 className="font-display text-[2rem] font-semibold leading-[1.1] tracking-[-0.02em] text-ink-900">
+          Welcome to Heirvo.
         </h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Let's check that everything is ready before you recover your first disc.
+        <p className="mt-2 text-[17px] font-medium text-ink-700">
+          Your memories are in good hands.
+        </p>
+        <p className="mt-4 max-w-lg text-[15px] leading-[1.55] text-ink-600">
+          We'll walk you through your first disc one step at a time — no
+          technical know-how needed. Most people save their first video in
+          under ten minutes.
         </p>
 
-        <div className="mt-6 space-y-2">
-          {!status && !error && (
-            <Row
-              ok={null}
-              label="Checking environment…"
-              detail="Running preflight checks"
-            />
+        {error && (
+          <div className="mt-5 rounded-2xl border border-red-300/60 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {/* Primary CTA */}
+        <div className="mt-7 flex flex-col items-start gap-3">
+          <button
+            onClick={() => onContinue("/")}
+            disabled={!status}
+            className="inline-flex items-center gap-2 rounded-2xl bg-brand-600 px-7 py-3 text-[15px] font-semibold text-white shadow-glow-blue transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:bg-ink-300 disabled:shadow-none"
+          >
+            Let's get started
+            <ArrowRight className="h-4 w-4" />
+          </button>
+
+          {/* Conditional secondary CTA */}
+          {status && !driveReady && (
+            <button
+              onClick={() => {
+                void openUrl("https://heirvo.com/recover").catch((e) =>
+                  setError(`Couldn't open browser: ${e}`),
+                );
+              }}
+              className="text-[13px] text-ink-500 hover:text-brand-600 transition"
+            >
+              No disc drive? Use our mail-in service →
+            </button>
           )}
-          {error && (
-            <div className="rounded-2xl border border-red-300/60 bg-red-50 px-4 py-3 text-sm text-red-700">
-              Couldn't run preflight: {error}
-            </div>
+          {status && driveReady && (
+            <button
+              onClick={() => onContinue("/wizard")}
+              className="text-[13px] text-ink-500 hover:text-brand-600 transition"
+            >
+              Already have a disc inserted? Start a rescue →
+            </button>
           )}
-          {status?.checks.map((c) => (
-            <Row key={c.id} ok={c.ok} label={c.label} detail={c.detail} critical={c.critical} />
-          ))}
         </div>
 
-        <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
-          {ffmpegMissing && (
-            <button
-              onClick={installFfmpeg}
-              disabled={installingFfmpeg}
-              className="inline-flex items-center gap-2 rounded-xl border border-ink-200 bg-white px-3 py-1.5 text-[12px] font-medium text-ink-700 transition hover:bg-ink-100 disabled:opacity-50"
-            >
-              {installingFfmpeg ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+        {/* Collapsed system details */}
+        <div className="mt-10 border-t border-ink-200/70 pt-4">
+          <button
+            onClick={() => setDetailsOpen((v) => !v)}
+            className="flex w-full items-center justify-between text-[12px] text-ink-500 hover:text-ink-700 transition"
+          >
+            <span className="flex items-center gap-2">
+              {!status ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-400" />
               ) : (
-                <Download className="h-3 w-3" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
               )}
-              {installingFfmpeg
-                ? (ffmpegProgress ?? "Installing…")
-                : "Install FFmpeg now (~80MB)"}
-            </button>
-          )}
-          <div className="ml-auto flex items-center gap-3">
-            {onnxFailedOnly && (
-              <button
-                onClick={() => onContinue(true)}
-                className="rounded-xl border border-ink-200 bg-white px-4 py-2 text-sm font-medium text-ink-700 transition hover:bg-ink-100"
-              >
-                Continue without AI
-              </button>
+              {status ? "Heirvo is ready · System details" : "Checking…"}
+            </span>
+            {detailsOpen ? (
+              <ChevronUp className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
             )}
-            <button
-              onClick={() => onContinue(false)}
-              disabled={!status || !status.allCriticalOk}
-              className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-glow-blue transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:bg-ink-300 disabled:shadow-none"
-            >
-              Continue
-            </button>
-          </div>
+          </button>
+
+          {detailsOpen && (
+            <div className="mt-3 space-y-2">
+              {status?.checks.map((c) => (
+                <Row key={c.id} check={c} />
+              ))}
+
+              {ffmpegMissing && (
+                <button
+                  onClick={installFfmpeg}
+                  disabled={installingFfmpeg}
+                  className="mt-2 inline-flex items-center gap-2 rounded-xl border border-ink-200 bg-white px-3 py-1.5 text-[12px] font-medium text-ink-700 transition hover:bg-ink-100 disabled:opacity-50"
+                >
+                  {installingFfmpeg ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : null}
+                  {installingFfmpeg
+                    ? (ffmpegProgress ?? "Installing helper file…")
+                    : "Install video helper now (~80 MB)"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function Row({
-  ok,
-  label,
-  detail,
-  critical,
-}: {
-  ok: PreflightCheck["ok"];
-  label: string;
-  detail: string;
-  critical?: boolean;
-}) {
+function Row({ check }: { check: PreflightCheck }) {
+  // Visual language rule: green for ready, blue info for "needs the user
+  // to do something later". NEVER amber, NEVER warning triangles.
+  const isInfo = check.id === "drives" && check.ok === false;
+
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-ink-200/60 bg-white/60 px-4 py-3">
+    <div className="flex items-start gap-3 rounded-xl border border-ink-200/60 bg-white/60 px-3.5 py-2.5">
       <div className="mt-0.5 shrink-0">
-        {ok === null ? (
-          <Loader2 className="h-5 w-5 animate-spin text-ink-400" />
-        ) : ok ? (
-          <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-        ) : critical ? (
-          <XCircle className="h-5 w-5 text-red-500" />
+        {isInfo ? (
+          <Info className="h-4 w-4 text-brand-500" />
         ) : (
-          <AlertTriangle className="h-5 w-5 text-amber-500" />
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-ink-900">{label}</div>
-        <div className="mt-0.5 truncate text-xs text-ink-500">{detail}</div>
+        <div className="text-[13px] font-medium text-ink-900">
+          {check.label}
+        </div>
+        <div className="mt-0.5 text-[12px] leading-snug text-ink-500">
+          {check.detail}
+        </div>
       </div>
     </div>
   );

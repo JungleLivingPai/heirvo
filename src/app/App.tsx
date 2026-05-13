@@ -1,12 +1,11 @@
 import { Routes, Route, Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
-import { Disc3, History, Sparkles, Film, Settings as SettingsIcon, ChevronLeft, ChevronRight as ChevronRightIcon } from "lucide-react";
+import { Disc3, History, Film, Settings as SettingsIcon, ChevronLeft, ChevronRight as ChevronRightIcon } from "lucide-react";
 import Home from "@/screens/Home";
 import { Wizard } from "@/screens/wizard/Wizard";
 import { Dashboard } from "@/screens/dashboard/Dashboard";
 import { SessionHistory } from "@/screens/history/SessionHistory";
-import { EnhancementStudio } from "@/screens/enhancement/EnhancementStudio";
 import { Transcode } from "@/screens/transcode/Transcode";
 import { Settings } from "@/screens/settings/Settings";
 import Preflight from "@/screens/preflight/Preflight";
@@ -42,7 +41,6 @@ export default function App() {
             <Route path="/wizard" element={<Wizard />} />
             <Route path="/history" element={<SessionHistory />} />
             <Route path="/transcode" element={<Transcode />} />
-            <Route path="/enhance" element={<EnhancementStudio />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Home />} />
           </Route>
@@ -130,9 +128,8 @@ function Sidebar() {
 
   const items = [
     { to: "/", label: "Home", icon: Disc3 },
-    { to: "/history", label: "Sessions", icon: History },
-    { to: "/transcode", label: "Transcode", icon: Film },
-    { to: "/enhance", label: "Enhance", icon: Sparkles },
+    { to: "/history", label: "My Discs", icon: History },
+    { to: "/transcode", label: "Save As…", icon: Film },
     { to: "/settings", label: "Settings", icon: SettingsIcon },
   ];
 
@@ -189,16 +186,16 @@ function Sidebar() {
 
       {/* Brand */}
       <div className={cn("flex items-center gap-2 px-3 pt-4 pb-5", collapsed && "justify-center px-0")}>
-        <BrandMark size={24} />
+        <BrandMark size={32} />
         {!collapsed && (
           <div className="flex flex-col leading-none min-w-0">
-            <div className="flex items-center gap-1">
-              <span className="font-display text-[15px] font-semibold tracking-tightish text-ink-900 truncate">
+            <div className="flex items-center gap-1.5">
+              <span className="font-display text-[22px] font-semibold tracking-tightish text-ink-900 truncate">
                 Heirvo
               </span>
               {license.plan === "pro" && (
                 <span
-                  className="rounded-full px-1.5 py-px text-[8px] font-semibold uppercase tracking-wider text-white shrink-0"
+                  className="rounded-full px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-white shrink-0"
                   style={{ background: "linear-gradient(135deg, #0A84FF 0%, #5AC8FA 100%)" }}
                 >
                   Pro

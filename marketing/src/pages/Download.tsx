@@ -101,7 +101,7 @@ export default function Download() {
               ctaSubcopy={
                 DOWNLOAD_URL
                   ? "~250 MB · Windows 10 or 11"
-                  : "The Windows app is almost ready. No DVD drive? Try our mail-in service below."
+                  : "The Windows app is almost ready. No disc drive? Try our mail-in service below."
               }
               windowsNote={
                 DOWNLOAD_URL
@@ -155,7 +155,7 @@ export default function Download() {
             className="mt-5 max-w-2xl rounded-2xl border border-ink-200/70 bg-white/70 backdrop-blur p-5 text-[14px] leading-relaxed text-ink-600"
             data-reveal
           >
-            <strong className="text-ink-900">Don't have a DVD drive?</strong>{" "}
+            <strong className="text-ink-900">Don't have a disc drive?</strong>{" "}
             No problem — use our{" "}
             <Link
               to="/recover"

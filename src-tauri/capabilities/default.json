@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the DearReel app",
+  "description": "Default permissions for Heirvo",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,6 +9,23 @@
     "fs:default",
     "fs:allow-write-text-file",
     "fs:allow-read-text-file",
-    "fs:allow-mkdir"
+    "fs:allow-mkdir",
+    "opener:default",
+    "opener:allow-open-url",
+    "opener:allow-reveal-item-in-dir",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "**/*.mp4" },
+        { "path": "**/*.mkv" },
+        { "path": "**/*.mov" },
+        { "path": "**/*.avi" },
+        { "path": "**/*.iso" },
+        { "path": "**/*.vob" },
+        { "path": "**/*.wav" },
+        { "path": "**/*.mp3" },
+        { "path": "**/*.flac" }
+      ]
+    }
   ]
 }

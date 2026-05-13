@@ -12,7 +12,7 @@ import {
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
-const SANS = '"Inter", ui-sans-serif, system-ui, sans-serif';
+const SANS = '"Sora", ui-sans-serif, system-ui, sans-serif';
 
 const C = {
   white:       "#FFFFFF",
@@ -21,10 +21,10 @@ const C = {
   blueLight:   "rgba(10,132,255,0.10)",
   navy:        "#0B1220",
   navyMid:     "rgba(11,18,32,0.95)",
-  grey:        "#F5F5F5",
+  grey:        "#F7F7F7",
   greyBorder:  "#E8E8E8",
-  inkMid:      "#444444",
-  inkMute:     "#888888",
+  inkMid:      "#6B6B6B",
+  inkMute:     "#9B9B9B",
   inkFaint:    "#BBBBBB",
   white60:     "rgba(255,255,255,0.60)",
   white20:     "rgba(255,255,255,0.20)",
@@ -221,7 +221,7 @@ export default function RecoverH() {
     color:        C.white,
     fontFamily:   SANS,
     outline:      "none",
-    borderRadius: 4,
+    borderRadius: 6,
     transition:   "border-color 180ms",
   };
 
@@ -357,7 +357,7 @@ export default function RecoverH() {
                   fontWeight:     600,
                   fontSize:       15,
                   padding:        "0.875rem 1.75rem",
-                  borderRadius:   6,
+                  borderRadius:   10,
                   textDecoration: "none",
                   transition:     "opacity 180ms",
                 }}
@@ -437,7 +437,7 @@ export default function RecoverH() {
               margin:        "0 0 1.25rem",
             }}
           >
-            Laptops don't come with DVD drives anymore.
+            Laptops don't come with disc drives anymore.
           </h2>
 
           <p
@@ -452,7 +452,7 @@ export default function RecoverH() {
           >
             If you tried to play your disc recently and found out the hard way — you're not
             alone. Most modern laptops, including MacBooks and the latest Windows machines,
-            removed the DVD drive years ago. You don't need to buy hardware, install software,
+            removed the disc drive years ago. You don't need to buy hardware, install software,
             or spend a weekend figuring it out. Mail us the disc.
           </p>
 
@@ -608,7 +608,7 @@ export default function RecoverH() {
             <div
               style={{
                 background:   C.white,
-                borderRadius: 8,
+                borderRadius: 12,
                 padding:      "2rem",
                 border:       `1px solid ${C.greyBorder}`,
               }}
@@ -658,7 +658,7 @@ export default function RecoverH() {
             <div
               style={{
                 background:   C.white,
-                borderRadius: 8,
+                borderRadius: 12,
                 padding:      "2rem",
                 border:       `1px solid ${C.greyBorder}`,
               }}
@@ -747,7 +747,7 @@ export default function RecoverH() {
           ref={pricingRowsRef}
           style={{
             border:       `1px solid ${C.greyBorder}`,
-            borderRadius: 8,
+            borderRadius: 12,
             overflow:     "hidden",
             marginBottom: "2rem",
           }}
@@ -833,7 +833,7 @@ export default function RecoverH() {
         <div
           style={{
             border:       `2px solid ${C.blue}`,
-            borderRadius: 8,
+            borderRadius: 12,
             padding:      "1.75rem 2rem",
             background:   C.blueLight,
             marginBottom: "2.5rem",
@@ -965,7 +965,7 @@ export default function RecoverH() {
                   alignItems:   "center",
                   padding:      "0.875rem 1.25rem",
                   border:       `1px solid ${C.greyBorder}`,
-                  borderRadius: 6,
+                  borderRadius: 10,
                   background:   C.white,
                 }}
               >
@@ -1061,7 +1061,7 @@ export default function RecoverH() {
                 key={t.name}
                 style={{
                   background:   C.white,
-                  borderRadius: 8,
+                  borderRadius: 12,
                   padding:      "1.75rem",
                   border:       `1px solid ${C.greyBorder}`,
                   display:      "flex",
@@ -1226,7 +1226,7 @@ export default function RecoverH() {
               style={{
                 background:   C.white10,
                 border:       `1px solid ${C.white20}`,
-                borderRadius: 8,
+                borderRadius: 12,
                 padding:      "2.5rem",
                 textAlign:    "center",
               }}
@@ -1277,7 +1277,7 @@ export default function RecoverH() {
                   fontWeight:     600,
                   fontSize:       14,
                   padding:        "0.875rem 1.75rem",
-                  borderRadius:   6,
+                  borderRadius:   10,
                   textDecoration: "none",
                 }}
               >
@@ -1290,7 +1290,7 @@ export default function RecoverH() {
               style={{
                 background:   C.white10,
                 border:       `1px solid ${C.blue}`,
-                borderRadius: 8,
+                borderRadius: 12,
                 padding:      "2.5rem",
                 textAlign:    "center",
               }}
@@ -1361,7 +1361,7 @@ export default function RecoverH() {
                   fontWeight:     700,
                   fontSize:       16,
                   padding:        "0.9rem 2rem",
-                  borderRadius:   6,
+                  borderRadius:   10,
                   textDecoration: "none",
                   transition:     "opacity 180ms",
                   marginBottom:   "1.5rem",
@@ -1433,7 +1433,7 @@ export default function RecoverH() {
                         cursor:      "pointer",
                         padding:     "0.45rem 0.85rem",
                         border:      `1px solid ${discTypes.includes(type) ? C.blue : C.white20}`,
-                        borderRadius:4,
+                        borderRadius:6,
                         background:  discTypes.includes(type) ? "rgba(10,132,255,0.18)" : "transparent",
                         transition:  "all 160ms",
                         userSelect:  "none",
@@ -1635,7 +1635,7 @@ export default function RecoverH() {
                     fontSize:       16,
                     padding:        "1rem",
                     border:         "none",
-                    borderRadius:   6,
+                    borderRadius:   10,
                     cursor:         busy ? "not-allowed" : "pointer",
                     transition:     "opacity 180ms",
                   }}

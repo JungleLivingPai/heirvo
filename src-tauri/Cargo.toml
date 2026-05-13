@@ -1,13 +1,13 @@
 [package]
-name = "dvd-recovery"
-version = "0.1.0"
+name = "heirvo"
+version = "1.0.0"
 description = "Heirvo — desktop application for damaged DVD recovery and video restoration"
 authors = ["Heirvo"]
 edition = "2021"
 rust-version = "1.75"
 
 [lib]
-name = "dvd_recovery_lib"
+name = "heirvo_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -19,6 +19,7 @@ tauri-plugin-dialog = "2.0"
 tauri-plugin-fs = "2.0"
 tauri-plugin-updater = "2.3"
 tauri-plugin-process = "2.0"
+tauri-plugin-opener = "2.0"
 
 # Async runtime
 tokio = { version = "1.41", features = ["full"] }

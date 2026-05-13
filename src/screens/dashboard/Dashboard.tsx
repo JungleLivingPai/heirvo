@@ -5,6 +5,7 @@ import { ipc, events } from "@/lib/ipc";
 import type { RecoveryStats, RecoveryMode } from "@/lib/types";
 import { SectorMapCanvas } from "./SectorMapCanvas";
 import { OutputPanel } from "./OutputPanel";
+import { EnhancementOffer } from "./EnhancementOffer";
 import {
   DiscVariantPicker,
   DiscVariantRenderer,
@@ -42,6 +43,7 @@ export function Dashboard() {
   const [showDrivePicker, setShowDrivePicker] = useState(false);
   const [drives, setDrives] = useState<DriveInfo[]>([]);
   const [driveSwitchMsg, setDriveSwitchMsg] = useState<string | null>(null);
+  const [savedVideoPath, setSavedVideoPath] = useState<string | null>(null);
   const [resumeMode, setResumeMode] = useState<RecoveryMode>(() => {
     try {
       const saved = id ? localStorage.getItem(`mode:${id}`) : null;
@@ -311,7 +313,7 @@ export function Dashboard() {
           {showDrivePicker && (
             <div className="card mt-3 p-4">
               <p className="mb-3 text-[12px] text-ink-500">
-                Different DVD drives often succeed where another fails — different
+                Different disc drives often succeed where another fails — different
                 optics, different read tolerances. Pick a drive and resume to retry
                 damaged areas.
               </p>
@@ -532,6 +534,12 @@ export function Dashboard() {
       </details>
 
       {recoveryDone && <DoneBanner stats={stats} />}
+      {recoveryDone && (
+        <EnhancementOffer
+          savedVideoPath={savedVideoPath}
+          onAccepted={(p) => setSavedVideoPath(p)}
+        />
+      )}
       </div>{/* end left column */}
 
       {/* ── RIGHT: save panel ── */}
@@ -539,7 +547,7 @@ export function Dashboard() {
         className="w-72 shrink-0 overflow-y-auto border-l border-ink-200/70 bg-white/30"
         style={{ backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
       >
-        <OutputPanel sessionId={id} />
+        <OutputPanel sessionId={id} onMp4Saved={setSavedVideoPath} />
       </div>
     </div>
   );
@@ -617,7 +625,7 @@ function DoneBanner({ stats }: { stats: RecoveryStats | null }) {
       tone = "rough";
       headline = "We weren't able to read this disc.";
       detail =
-        "The drive couldn't read enough to recover usable video. Try cleaning the disc, or use a different DVD drive.";
+        "The drive couldn't read enough to recover usable video. Try cleaning the disc, or use a different disc drive.";
     }
   }
 
@@ -686,12 +694,12 @@ function DriveHealthBanner({ stats }: { stats: RecoveryStats | null }) {
 
   let detail: string;
   if (reads_ok === 0) {
-    detail = `We've tried ${attempts.toLocaleString()} sector reads and none have succeeded. The disc might be unreadable in this drive — try a different DVD drive, a powered USB hub, or a different USB port.`;
+    detail = `We've tried ${attempts.toLocaleString()} sector reads and none have succeeded. The disc might be unreadable in this drive — try a different disc drive, a powered USB hub, or a different USB port.`;
   } else if (idleMin >= 2) {
     detail = `No successful reads in ${idleMin} minute${idleMin === 1 ? "" : "s"}. The drive may have stopped responding — check the cable, try a different USB port, or try a different drive.`;
   } else {
     detail =
-      "Almost no reads are succeeding. This usually means the disc can't be read in this drive — a different DVD drive often helps.";
+      "Almost no reads are succeeding. This usually means the disc can't be read in this drive — a different disc drive often helps.";
   }
 
   return (

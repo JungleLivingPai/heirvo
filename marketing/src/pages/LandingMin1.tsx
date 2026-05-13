@@ -820,7 +820,7 @@ export default function LandingMin1() {
             <Step
               n={1}
               title="Insert your disc"
-              body="Connect any USB or built-in DVD drive and insert your disc. Heirvo detects the disc type automatically — no settings to configure."
+              body="Connect any USB or built-in disc drive (CD or DVD) and insert your disc. Heirvo detects the disc type automatically — no settings to configure."
             />
             <div style={{ height: 1, background: C.border }} aria-hidden />
             <Step

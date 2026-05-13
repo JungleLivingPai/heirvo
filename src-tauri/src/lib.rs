@@ -60,7 +60,8 @@ pub fn run() {
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init());
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init());
     // NOTE: tauri-plugin-updater + tauri-plugin-process are temporarily
     // disabled. They require a generated ed25519 keypair (signing key) to
     // function. Re-enable BOTH together once `npx @tauri-apps/cli signer

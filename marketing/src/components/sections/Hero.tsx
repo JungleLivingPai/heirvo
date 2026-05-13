@@ -5,7 +5,7 @@ import { splitReveal, clipReveal, magneticHover, parallaxLayer } from "../../lib
 
 const DOWNLOAD_URL =
   import.meta.env.VITE_DOWNLOAD_URL ||
-  "https://github.com/your-username/heirvo/releases/latest/download/Heirvo_0.1.0_setup.exe";
+  "https://github.com/JungleLivingPai/heirvo/releases/latest/download/Heirvo_1.0.0_x64-setup.exe";
 
 /**
  * Hero — conversion-focused, two-column layout.
@@ -181,7 +181,7 @@ export default function Hero() {
                   to="/recover"
                   className="btn btn-ghost inline-flex items-center gap-1.5 text-[14px] text-ink-600 hover:text-ink-900 border border-ink-200 px-5 py-3.5 rounded-xl transition-colors"
                 >
-                  Don't have a DVD drive? We'll do it for you
+                  Don't have a disc drive? We'll do it for you
                   <span aria-hidden className="opacity-60">&rarr;</span>
                 </Link>
               </div>
@@ -312,7 +312,7 @@ function HandOffBand() {
               <MailIcon />
             </span>
             <p className="text-[14px] text-slate-300 leading-snug">
-              <span className="text-white font-medium">Don't have a DVD drive at home?</span>{" "}
+              <span className="text-white font-medium">Don't have a disc drive at home?</span>{" "}
               No problem.
             </p>
           </div>

@@ -17,7 +17,15 @@ type RmapImport = {
   unknown_sectors: number;
 };
 
-export function OutputPanel({ sessionId }: { sessionId: string }) {
+export function OutputPanel({
+  sessionId,
+  onMp4Saved,
+}: {
+  sessionId: string;
+  /** Notifies the parent (Dashboard) that a video file is now on disk so it
+   *  can offer the optional one-click "make it sharper" follow-up. */
+  onMp4Saved?: (outputPath: string) => void;
+}) {
   const [health, setHealth] = useState<HealthReport | null>(null);
   const [mp4, setMp4] = useState<Mp4Result | null>(null);
   const [iso, setIso] = useState<IsoResult | null>(null);
@@ -290,7 +298,11 @@ export function OutputPanel({ sessionId }: { sessionId: string }) {
               <button
                 className="btn btn-primary"
                 disabled={busy !== null}
-                onClick={() => wrap("mp4", async () => setMp4(await ipc.saveAsMp4(sessionId)))}
+                onClick={() => wrap("mp4", async () => {
+                  const r = await ipc.saveAsMp4(sessionId);
+                  setMp4(r);
+                  onMp4Saved?.(r.output_path);
+                })}
               >
                 {busy === "mp4" && <Loader2 className="h-4 w-4 animate-spin" />}
                 <FileVideo className="h-4 w-4" />

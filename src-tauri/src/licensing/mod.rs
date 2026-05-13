@@ -104,7 +104,15 @@ pub async fn validate_online(key: &str) -> Option<LicenseStatus> {
 
     let product_id: u64 = product_id_str.parse().ok()?;
 
-    let resp = reqwest::Client::new()
+    // Bounded HTTP client — never let a slow/hostile network hang license
+    // validation indefinitely. 15s is generous for a single POST.
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+
+    let resp = client
         .post(LS_VALIDATE_URL)
         .header("Accept", "application/json")
         .form(&[("license_key", trimmed)])

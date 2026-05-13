@@ -2,6 +2,11 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Env files — never commit. Set live values in Vercel/CI dashboards.
+.env
+.env.*
+!.env.example
 # Per-user Claude Code settings (allowlist for skipping permission prompts).
 # The shared `.claude/settings.json` is committed; the .local one is not.
 .claude/settings.local.json
